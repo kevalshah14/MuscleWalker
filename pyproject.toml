@@ -1,7 +1,10 @@
 [project]
 name = "musclewalker"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Python project for muscle tracking and analysis using MuJoCo"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "mujoco[python]>=3.0.0",
+    "numpy>=1.24.0",
+]

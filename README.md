@@ -28,7 +28,11 @@ pip install uv
 
 3. **Run the project:**
    ```bash
+   # For headless simulation (no visual output)
    uv run main.py
+   
+   # For visual simulation (requires mjpython on macOS)
+   uv run mjpython main.py
    ```
 
 ### Common UV Commands
@@ -42,7 +46,37 @@ pip install uv
 - **Create virtual environment:** `uv venv`
 - **Activate virtual environment:** `source .venv/bin/activate` (Linux/macOS) or `.venv\Scripts\activate` (Windows)
 
+## MuJoCo Visualization
+
+This project includes a bipedal walker simulation with visual output capabilities:
+
+### Visual Simulation
+To see the MuJoCo environment in action:
+```bash
+uv run mjpython main.py
+```
+
+This will open a 3D viewer window showing:
+- A bipedal walker with torso, thighs, shins, and feet
+- Real-time physics simulation
+- Random control inputs applied to joints
+- Interactive 3D camera controls
+
+### Headless Simulation
+For running without visual output:
+```bash
+uv run main.py
+```
+
+### Viewer Controls
+When the visual window is open:
+- **Rotate**: Click and drag with left mouse button
+- **Zoom**: Scroll mouse wheel
+- **Pan**: Click and drag with right mouse button
+- **Exit**: Press ESC or close the window
+
 ## Requirements
 
 - Python 3.13+
 - UV package manager
+- MuJoCo 3.3.6+ (includes mjpython for macOS visualization)
