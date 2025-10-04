@@ -1,0 +1,160 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\title{Midterm Presentation Q\&A: MuscleWalker Project}
+\author{Keval Shah}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Project Overview}
+
+\subsection{What is your project about?}
+
+Our project aims to replace the traditional motor actuators in the Walker agent from the dm-control benchmark for reinforcement learning with artificial muscle tendons. The goal is to develop a bipedal walking agent that uses muscle-like actuation instead of conventional motors, and train effective policies for forward locomotion using either sampling-based Model Predictive Control (MPC) or learned reinforcement learning policies.
+
+The project involves:
+\begin{itemize}
+    \item Creating a MuJoCo-based bipedal walker model with muscle tendon actuators
+    \item Implementing control policies for forward walking locomotion
+    \item Comparing performance between MPC and RL-based approaches
+    \item Analyzing the biomechanical advantages of muscle-based actuation
+\end{itemize}
+
+\subsection{Why is this project important?}
+
+This project is important for several reasons:
+
+\textbf{Biomechanical Realism:} Artificial muscles provide more biologically realistic actuation compared to traditional motors, offering:
+\begin{itemize}
+    \item Non-linear force-length and force-velocity relationships
+    \item Energy-efficient actuation through elastic energy storage
+    \item More natural movement patterns that mimic biological locomotion
+\end{itemize}
+
+\textbf{Robotics Applications:} Muscle-based actuation has potential applications in:
+\begin{itemize}
+    \item Soft robotics and bio-inspired robot design
+    \item Prosthetics and exoskeletons
+    \item Humanoid robotics with more natural movement
+\end{itemize}
+
+\textbf{Control Theory:} Understanding how to control muscle-actuated systems advances:
+\begin{itemize}
+    \item Control algorithms for complex, non-linear actuators
+    \item Learning-based control methods for biomechanical systems
+    \item Hybrid control approaches combining MPC and RL
+\end{itemize}
+
+\subsection{How are you approaching this project?}
+
+Our approach follows a systematic methodology:
+
+\textbf{1. Model Development:}
+\begin{itemize}
+    \item Start with the dm-control Walker benchmark model
+    \item Replace motor actuators with muscle tendon models in MuJoCo
+    \item Implement proper muscle dynamics (Hill-type muscle model)
+    \item Validate the biomechanical model against known muscle properties
+\end{itemize}
+
+\textbf{2. Control Policy Development:}
+\begin{itemize}
+    \item Implement sampling-based MPC for real-time control
+    \item Develop RL-based policies using appropriate algorithms (PPO, SAC, etc.)
+    \item Compare performance metrics: stability, energy efficiency, walking speed
+\end{itemize}
+
+\textbf{3. Evaluation Framework:}
+\begin{itemize}
+    \item Establish baseline performance with original motor actuators
+    \item Compare muscle vs. motor performance across multiple metrics
+    \item Analyze energy consumption and walking efficiency
+\end{itemize}
+
+\subsection{What have you accomplished so far?}
+
+Based on the current repository state, we have accomplished:
+
+\textbf{Infrastructure Setup:}
+\begin{itemize}
+    \item Created a complete MuJoCo-based bipedal walker simulation environment
+    \item Implemented proper project structure with UV package management
+    \item Set up visualization capabilities with MuJoCo's built-in viewer
+    \item Created a functional walker model with 6 DOF (torso + 2 legs)
+\end{itemize}
+
+\textbf{Model Implementation:}
+\begin{itemize}
+    \item Developed a planar walker model with torso, thighs, shins, and feet
+    \item Implemented 6 motor actuators (hip, knee, ankle for each leg)
+    \item Added proper joint constraints and physical properties
+    \item Created visual materials and rendering setup
+\end{itemize}
+
+\textbf{Basic Control:}
+\begin{itemize}
+    \item Implemented simple alternating leg control logic
+    \item Created phase-based walking pattern (right leg forward, then left leg forward)
+    \item Added position tracking and movement monitoring
+    \item Established real-time simulation with visual feedback
+\end{itemize}
+
+\textbf{Technical Foundation:}
+\begin{itemize}
+    \item Python 3.13+ environment with MuJoCo 3.0+ integration
+    \item Proper dependency management with UV
+    \item Cross-platform compatibility (macOS, Linux, Windows)
+    \item Interactive 3D visualization with camera controls
+\end{itemize}
+
+\subsection{What do you plan to do next?}
+
+Our immediate next steps include:
+
+\textbf{Week 1: Muscle Implementation}
+\begin{itemize}
+    \item Replace motor actuators with Hill-type muscle models
+    \item Implement basic muscle-tendon dynamics with force-length relationships
+    \item Add muscle activation dynamics
+    \item Validate muscle model functionality
+\end{itemize}
+
+\textbf{Week 2: Control Development}
+\begin{itemize}
+    \item Implement sampling-based MPC controller
+    \item Develop RL environment with reward functions
+    \item Train initial RL policies using PPO/SAC
+    \item Optimize control parameters for muscle-actuated walking
+\end{itemize}
+
+\textbf{Week 3: Analysis and Optimization}
+\begin{itemize}
+    \item Compare muscle vs. motor performance metrics
+    \item Analyze energy efficiency and walking stability
+    \item Fine-tune control policies for better performance
+    \item Document key findings and challenges
+\end{itemize}
+
+\textbf{Week 4: Documentation and Finalization}
+\begin{itemize}
+    \item Create technical documentation
+    \item Prepare presentation materials
+    \item Write project report
+    \item Finalize code and prepare for submission
+\end{itemize}
+
+\textbf{Technical Milestones:}
+\begin{itemize}
+    \item Successful muscle-actuated walking without falling
+    \item Stable forward locomotion for extended periods
+    \item Demonstrated energy efficiency improvements over motors
+    \item Robust control policies that generalize across different conditions
+\end{itemize}
+
+\end{document}
