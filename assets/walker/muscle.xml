@@ -1,0 +1,52 @@
+<!-- two_link_muscle.xml (we will embed this as a Python string) -->
+<mujoco model="two_link_muscle">
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+  <!-- <asset>
+    <texture name="tex1" type="skybox" builtin="gradient" rgb1="0.2 0.3 0.4" rgb2="0.9 0.9 0.9"/>
+  </asset> -->
+  <worldbody>
+    <!-- base -->
+    <body name="base" pos="0 0 0">
+      <!-- joint 1 -->
+      <geom name="link1" type="capsule" fromto="0 0 0 0.5 0 0" size="0.05" rgba="0.6 0.6 0.8 1"/>
+      <site name="l1_tendon_point_t1" pos="0.1 0.05 0" size="0.02" group="1"/>
+      <site name="l1_tendon_point_t2" pos="0.25 -0.05 0" size="0.02" group="1"/>
+      <site name="tip_tendon_point_t2" pos="0.6 -0.1 0" size="0.02" group="1"/>
+
+      <!-- link2 -->
+      <body name="link2" pos="0.5 0 0">
+        <joint name="joint1" type="hinge" axis="0 0 1" pos="0 0 0" damping="0.1" range = "0.0 135.0"/>
+        <geom name="link2_geom" type="capsule" fromto="0 0 0 0.5 0 0" size="0.05" rgba="0.6 0.8 0.6 1"/>
+
+        <!-- small site near the tip (useful if you want to route tendons) -->
+        <site name="l2_tendon_point_t1" pos="0.1 0.05 0" size="0.02" group="1"/>
+        <site name="l2_tendon_point_t2" pos="0.25 -0.05 0" size="0.02" group="1"/>
+      </body>
+
+      <!-- sites used as tendon anchor points -->
+      <!-- <site name="s_joint1_pos" pos="0.0 0 0.06" size="0.01"/>
+      <site name="s_joint1_neg" pos="0.0 0 -0.06" size="0.01"/>
+      <site name="s_joint2_pos" pos="0.5 0 0.06" size="0.01"/>
+      <site name="s_joint2_neg" pos="0.5 0 -0.06" size="0.01"/> -->
+    </body>
+  </worldbody>
+
+  <!-- tendons: spatial type that wraps around sites (very simple routing) -->
+  <tendon>
+    <spatial name="t_1" springlength="0.5" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+      <site site="l1_tendon_point_t1"/>
+      <site site="l2_tendon_point_t1"/>
+    </spatial>
+    <spatial name="t_2" springlength="0.5" stiffness="100" damping="0.0" width="0.01" rgba="1 0 0 1">
+      <site site="l1_tendon_point_t2"/>
+      <site site="tip_tendon_point_t2"/>
+      <site site="l2_tendon_point_t2"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <muscle name="A" tendon="t_1" ctrlrange="0.0 1.0" force="50" />
+  </actuator>
+
+
+</mujoco>
