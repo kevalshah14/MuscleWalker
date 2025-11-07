@@ -5,6 +5,11 @@ description = "A Python project for muscle tracking and analysis using MuJoCo"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "gymnasium>=1.2.2",
     "mujoco[python]>=3.0.0",
     "numpy>=1.24.0",
+    "rich>=14.2.0",
+    "stable-baselines3>=2.7.0",
+    "tensorboard>=2.20.0",
+    "tqdm>=4.67.1",
 ]

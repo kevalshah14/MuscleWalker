@@ -9,13 +9,66 @@ def load_walker_model():
     """Load the walker model from the assets folder."""
     # Get the path to the walker.xml file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    walker_path = os.path.join(current_dir, "assets", "walker", "walker.xml")
+    walker_path = os.path.join(current_dir, "assets", "walker", "muscle_walker.xml")
     
     if not os.path.exists(walker_path):
         raise FileNotFoundError(f"Walker model not found at {walker_path}")
     
     print(f"Loading walker model from: {walker_path}")
     return mujoco.MjModel.from_xml_path(walker_path)
+
+
+def apply_stabilizing_control(model, data):
+    """
+    Apply baseline muscle activation to keep the walker standing.
+    This provides automatic stabilization - you can override by adjusting
+    controls in the viewer UI (though they may be overwritten each frame).
+    """
+    # Find joint IDs by name and get their qpos addresses
+    def get_joint_angle(joint_name):
+        try:
+            joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
+            if joint_id >= 0:
+                qpos_addr = model.jnt_qposadr[joint_id]
+                return data.qpos[qpos_addr]
+        except:
+            pass
+        return 0.0
+    
+    # Get joint angles
+    hip_angles = np.array([
+        get_joint_angle("right_hip"),
+        get_joint_angle("left_hip")
+    ])
+    knee_angles = np.array([
+        get_joint_angle("right_knee"),
+        get_joint_angle("left_knee")
+    ])
+    ankle_angles = np.array([
+        get_joint_angle("right_ankle"),
+        get_joint_angle("left_ankle")
+    ])
+    
+    # Baseline activation to keep joints from collapsing
+    # Hip: slight flexion to keep legs forward (positive angle = flexion)
+    hip_activation = 0.3 + 0.2 * np.clip(hip_angles / 0.5, -1, 1)
+    
+    # Knee: moderate activation to prevent hyperextension (negative angle = extension)
+    knee_activation = 0.4 + 0.3 * np.clip(knee_angles / -1.0, -1, 1)
+    
+    # Ankle: slight activation to keep feet flat
+    ankle_activation = 0.2 + 0.2 * np.clip(ankle_angles / 0.3, -1, 1)
+    
+    # Apply to all muscles
+    ctrl = np.zeros(model.nu)
+    ctrl[0] = np.clip(hip_activation[0], 0, 1)  # right_hip_flex
+    ctrl[1] = np.clip(knee_activation[0], 0, 1)  # right_knee_flex
+    ctrl[2] = np.clip(ankle_activation[0], 0, 1)  # right_ankle_flex
+    ctrl[3] = np.clip(hip_activation[1], 0, 1)  # left_hip_flex
+    ctrl[4] = np.clip(knee_activation[1], 0, 1)  # left_knee_flex
+    ctrl[5] = np.clip(ankle_activation[1], 0, 1)  # left_ankle_flex
+    
+    data.ctrl[:] = ctrl
 
 
 def main():
@@ -42,9 +95,15 @@ def main():
         print("- Double-click on the model to open the UI")
         print("- Go to 'Control' tab to see all muscle actuators")
         print("- Adjust sliders to control each muscle (0=relaxed, 1=contracted)")
-        print("\n12 Muscle Actuators:")
-        print("  Right leg: right_hip_flex, right_hip_ext, right_knee_flex, right_knee_ext, right_ankle_flex, right_ankle_ext")
-        print("  Left leg:  left_hip_flex, left_hip_ext, left_knee_flex, left_knee_ext, left_ankle_flex, left_ankle_ext")
+        print("\nMUSCLE WALKER: Full walker using muscle.xml pattern")
+        print("  6 Muscle actuators (one per joint):")
+        print("    - Right hip, knee, ankle flexors")
+        print("    - Left hip, knee, ankle flexors")
+        print("  Each joint has:")
+        print("    - 1 Active tendon (stiffness=0) with muscle actuator")
+        print("    - 1 Passive tendon (stiffness=100) for antagonistic action")
+        print("\nTORSO ANCHORED: Like muscle.xml's fixed base, torso is welded")
+        print("  to prevent falling. You can test muscles by adjusting sliders.")
         print("\nCamera controls:")
         print("- Mouse: Rotate view")
         print("- Scroll: Zoom in/out")
@@ -56,7 +115,8 @@ def main():
         viewer.cam.elevation = -20
         viewer.cam.azimuth = 45
         
-        # Run simulation with viewer (no automatic control)
+        # Run simulation (torso is anchored, so no automatic control needed)
+        # You can control muscles manually via the viewer UI
         while viewer.is_running():
             # Step the simulation (muscles controlled from viewer UI)
             mujoco.mj_step(model, data)
