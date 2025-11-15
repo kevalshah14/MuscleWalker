@@ -1,0 +1,16 @@
+Sat Nov 15 13:33:36 2025
+ERROR: mj_makeConstraint: nefc under-allocation: found nefc=4 but allocated only 3
+
+Sat Nov 15 13:33:36 2025
+ERROR: mj_makeConstraint: nefc under-allocation: found nefc=4 but allocated only 3
+
+Sat Nov 15 13:35:16 2025
+ERROR: mj_stackAlloc: out of memory, stack overflow at mj_collideTree, line 660
+  max = 13631488, available = 13630648, requested = 20966753496
+  nefc = 0, ncon = 0
+
+Sat Nov 15 13:35:16 2025
+ERROR: mj_stackAlloc: out of memory, stack overflow at mj_collideTree, line 660
+  max = 13631488, available = 13628080, requested = 25622190680
+  nefc = 0, ncon = 0
+

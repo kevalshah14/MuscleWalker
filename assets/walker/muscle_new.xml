@@ -40,33 +40,33 @@
       <geom name="torso" size="0.07 0.3" />
       
       <!-- Right hip tendon attachment sites -->
-      <site name="torso_right_hip_flex" pos="0.05 -.05 0.2" size="0.02" group="1"/>
+      <site name="torso_right_hip_flex" pos="0.05 -.05 -0.2" size="0.02" group="1"/>
       <site name="torso_right_hip_ext_1" pos="-0.05 -.05 -0.0" size="0.02" group="1"/>
-      <site name="torso_right_hip_ext_2" pos="-0.05 -.05 -0.4" size="0.02" group="1"/>
+      <site name="torso_right_hip_ext_2" pos="-0.05 -.05 -0.5" size="0.02" group="1"/>
 
-      <site name="torso_left_hip_flex" pos="0.05 0.05 0.2" size="0.02" group="1"/>
+      <site name="torso_left_hip_flex" pos="0.05 0.05 -0.2" size="0.02" group="1"/>
       <site name="torso_left_hip_ext_1" pos="-0.05 0.05 0.0" size="0.02" group="1"/>
-      <site name="torso_left_hip_ext_2" pos="-0.05 0.05 -0.4" size="0.02" group="1"/>
+      <site name="torso_left_hip_ext_2" pos="-0.05 0.05 -0.5" size="0.02" group="1"/>
       
       <body name="right_thigh" pos="0 -.05 -0.3">
-        <joint name="right_hip" range="0 135" damping="5.0"/>
+        <joint name="right_hip" range="0 90" damping="5.0"/>
         <geom name="right_thigh" pos="0 0 -0.225" size="0.05 0.225"/>
         <!-- Right hip tendon sites on thigh -->
-        <site name="right_thigh_hip_flex" pos="0.05 0 -0.1" size="0.02" group="1"/>
+        <site name="right_thigh_hip_flex" pos="0.05 0 -0.4" size="0.02" group="1"/>
         <site name="right_thigh_hip_ext" pos="-0.05 0 -0.2" size="0.02" group="1"/>
     
         <!-- Right knee tendon sites on thigh (exactly like test_knee.xml) -->
         <site name="right_thigh_knee_ext_1" pos="0.05 0 -0.225" size="0.02" group="1"/>
-        <site name="right_thigh_knee_ext_2" pos="0.0 0 -0.625" size="0.02" group="1"/>
-        <site name="right_thigh_knee_flex" pos="-0.05 0 -0.1" size="0.02" group="1"/>
+        <site name="right_thigh_knee_ext_2" pos="0.05 0 -0.625" size="0.02" group="1"/>
+        <site name="right_thigh_knee_flex" pos="-0.05 0 -0.3" size="0.02" group="1"/>
         
         <body name="right_leg" pos="0 0 -0.7">
           <!-- Joint: range inverted for knee (negative = extended, 0 = flexed) -->
-          <joint name="right_knee" type="hinge" axis="0 -1 0" pos="0 0 0.25" damping="1.0" range="-150 0"/>
+          <joint name="right_knee" type="hinge" axis="0 -1 0" pos="0 0 0.25" damping="1.0" range="-90 0"/>
           <geom name="right_leg" size="0.04 0.25"/>
           <!-- Right knee tendon sites on leg (exactly like test_knee.xml) -->
           <site name="right_leg_knee_ext" pos="0.05 0 0.0" size="0.02" group="1"/>
-          <site name="right_leg_knee_flex" pos="-0.05 0 0.15" size="0.02" group="1"/>
+          <site name="right_leg_knee_flex" pos="-0.05 0 -0.15" size="0.02" group="1"/>
           <!-- Right ankle tendon sites on leg -->
           <site name="right_leg_ankle_flex" pos="0.05 0 0.1" size="0.02" group="1"/>
           <site name="right_leg_ankle_ext" pos="-0.05 0 0" size="0.02" group="1"/>
@@ -83,24 +83,24 @@
       
       
       <body name="left_thigh" pos="0 .05 -0.3">
-        <joint name="left_hip" range="-45 135" damping="5.0"/>
+        <joint name="left_hip" range="0 90" damping="5.0"/>
         <geom name="left_thigh" pos="0 0 -0.225" size="0.05 0.225"/>
 
-        <site name="left_thigh_hip_flex" pos="0.05 0 -0.1" size="0.02" group="1"/>
+        <site name="left_thigh_hip_flex" pos="0.05 0 -0.4" size="0.02" group="1"/>
         <site name="left_thigh_hip_ext" pos="-0.05 0 -0.2" size="0.02" group="1"/>
 
         <!-- Left knee tendon sites -->
         <site name="left_thigh_knee_ext_1" pos="0.05 0 -0.225" size="0.02" group="1"/>
-        <site name="left_thigh_knee_ext_2" pos="0.0 0 -0.625" size="0.02" group="1"/>
-        <site name="left_thigh_knee_flex" pos="-0.05 0 -0.1" size="0.02" group="1"/>
+        <site name="left_thigh_knee_ext_2" pos="0.05 0 -0.625" size="0.02" group="1"/>
+        <site name="left_thigh_knee_flex" pos="-0.05 0 -0.3" size="0.02" group="1"/>
         
         <body name="left_leg" pos="0 0 -0.7">
           <!-- Joint: range inverted for knee (negative = extended, 0 = flexed) -->
-          <joint name="left_knee" type="hinge" axis="0 -1 0" pos="0 0 0.25" damping="1.0" range="-150 0"/>
+          <joint name="left_knee" type="hinge" axis="0 -1 0" pos="0 0 0.25" damping="1.0" range="-90 0"/>
           <geom name="left_leg" size="0.04 0.25"/>
 
           <site name="left_leg_knee_ext" pos="0.05 0 0.0" size="0.02" group="1"/>
-          <site name="left_leg_knee_flex" pos="-0.05 0 0.15" size="0.02" group="1"/>
+          <site name="left_leg_knee_flex" pos="-0.05 0 -0.15" size="0.02" group="1"/>
           <!-- Left ankle tendon sites -->
           <site name="left_leg_ankle_flex" pos="0.05 0 0.1" size="0.02" group="1"/>
           <site name="left_leg_ankle_ext" pos="-0.05 0 0" size="0.02" group="1"/>
@@ -121,63 +121,63 @@
   <!-- Tendons: Following muscle.xml pattern - one active (stiffness=0) and one passive (stiffness=100) per joint -->
   <tendon>
     <!-- Right hip tendons -->
-    <spatial name="right_hip_flexor" springlength="0.4" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="right_hip_flexor" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="torso_right_hip_flex"/>
       <site site="right_thigh_hip_flex"/>
     </spatial>
-    <spatial name="right_hip_extensor" springlength="0.45" stiffness="4000" damping="5.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="right_hip_extensor"  stiffness="4000" damping="5.0" width="0.01" rgba="0 0 1 1">
       <site site="torso_right_hip_ext_1"/>
       <site site="torso_right_hip_ext_2"/>
       <site site="right_thigh_hip_ext"/>
     </spatial>
 
-    <spatial name="right_knee_extensor" springlength="0.45" stiffness="1500" damping="5.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="right_knee_extensor" stiffness="2500" damping="5.0" width="0.01" rgba="0 0 1 1">
       <site site="right_thigh_knee_ext_1"/>
       <site site="right_thigh_knee_ext_2"/>
       <site site="right_leg_knee_ext"/>
     </spatial>
-    <spatial name="right_knee_flexor" springlength="0.4" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="right_knee_flexor" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="right_thigh_knee_flex"/>
       <site site="right_leg_knee_flex"/>
     </spatial>
 
-    <spatial name="right_ankle_flexor" springlength="0.2022" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="right_ankle_flexor"  stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="right_leg_ankle_flex"/>
       <site site="right_foot_ankle_flex"/>
     </spatial>
-    <spatial name="right_ankle_extensor" springlength="0.1" stiffness="1500" damping="100.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="right_ankle_extensor"  stiffness="1500" damping="100.0" width="0.01" rgba="0 0 1 1">
       <site site="right_leg_ankle_ext"/>
       <site site="right_foot_ankle_ext"/>
     </spatial>
 
     <!-- Left hip tendons -->
-    <spatial name="left_hip_flexor" springlength="0.4" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="left_hip_flexor"stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="torso_left_hip_flex"/>
       <site site="left_thigh_hip_flex"/>
     </spatial>
-    <spatial name="left_hip_extensor" springlength="0.45" stiffness="4000" damping="5.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="left_hip_extensor" stiffness="4000" damping="5.0" width="0.01" rgba="0 0 1 1">
       <site site="torso_left_hip_ext_1"/>
       <site site="torso_left_hip_ext_2"/>
       <site site="left_thigh_hip_ext"/>
     </spatial>
 
     <!-- Left knee tendons -->
-    <spatial name="left_knee_extensor" springlength="0.45" stiffness="1500" damping="5.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="left_knee_extensor" stiffness="2500" damping="5.0" width="0.01" rgba="0 0 1 1">
       <site site="left_thigh_knee_ext_1"/>
       <site site="left_thigh_knee_ext_2"/>
       <site site="left_leg_knee_ext"/>
     </spatial>
-    <spatial name="left_knee_flexor" springlength="0.4" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="left_knee_flexor" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="left_thigh_knee_flex"/>
       <site site="left_leg_knee_flex"/>
     </spatial>
 
     <!-- Left ankle tendons -->
-    <spatial name="left_ankle_flexor" springlength="0.2022" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
+    <spatial name="left_ankle_flexor" stiffness="0" damping="0.0" width="0.01" rgba="1 0 0 1">
       <site site="left_leg_ankle_flex"/>
       <site site="left_foot_ankle_flex"/>
     </spatial>
-    <spatial name="left_ankle_extensor" springlength="0.1" stiffness="1500" damping="100.0" width="0.01" rgba="0 0 1 1">
+    <spatial name="left_ankle_extensor" stiffness="1500" damping="100.0" width="0.01" rgba="0 0 1 1">
       <site site="left_leg_ankle_ext"/>
       <site site="left_foot_ankle_ext"/>
     </spatial>
@@ -193,12 +193,12 @@
   <actuator>
     <!-- Right leg muscles - FIXED: control flexors (active tendons) -->
     <muscle name="right_hip_flex" tendon="right_hip_flexor" ctrlrange="0.0 1.0" force="5000"/>
-    <muscle name="right_knee_flex" tendon="right_knee_flexor" ctrlrange="0.0 1.0" force="1500"/>
-    <muscle name="right_ankle_flex" tendon="right_ankle_flexor" ctrlrange="0.0 1.0" force="1200"/>
+    <muscle name="right_knee_flex" tendon="right_knee_flexor" ctrlrange="0.0 1.0" force="3000"/>
+    <muscle name="right_ankle_flex" tendon="right_ankle_flexor" ctrlrange="0.0 1.0" force="2000"/>
 
     <muscle name="left_hip_flex" tendon="left_hip_flexor" ctrlrange="0.0 1.0" force="5000"/>
-    <muscle name="left_knee_flex" tendon="left_knee_flexor" ctrlrange="0.0 1.0" force="1500"/>
-    <muscle name="left_ankle_flex" tendon="left_ankle_flexor" ctrlrange="0.0 1.0" force="1200"/>
+    <muscle name="left_knee_flex" tendon="left_knee_flexor" ctrlrange="0.0 1.0" force="3000"/>
+    <muscle name="left_ankle_flex" tendon="left_ankle_flexor" ctrlrange="0.0 1.0" force="2000"/>
   </actuator>
 </mujoco>
 
