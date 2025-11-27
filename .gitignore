@@ -147,3 +147,5 @@ dmypy.json
 *.mp4
 *.avi
 *.mov
+
+ppo_muscle_walker.zip
