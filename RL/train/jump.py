@@ -63,6 +63,9 @@ class MuscleKangarooEnv(gym.Env):
         self.prev_height = 0.0
         self.max_height_achieved = 0.0
 
+        # Store current action for termination checks
+        self.current_action = np.zeros(6)  # 6 muscle actions
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
@@ -94,6 +97,9 @@ class MuscleKangarooEnv(gym.Env):
         return self._get_obs(), {}
 
     def step(self, action):
+        # Store current action for termination checks
+        self.current_action = action
+
         # Scale action from [-1, 1] to [0, 1] for muscles
         ctrl = 0.5 * (action + 1.0)
         ctrl = np.clip(ctrl, 0.0, 1.0)
@@ -139,49 +145,85 @@ class MuscleKangarooEnv(gym.Env):
         # Update max height achieved
         self.max_height_achieved = max(self.max_height_achieved, height)
 
-        # 1. Vertical movement reward - encourage jumping up and down (increased weight)
+        # 1. FORWARD PROGRESS - PRIMARY OBJECTIVE: Move forward like a real kangaroo
+        forward_reward = forward_vel * 10.0  # Strong reward for forward velocity
+
+        # 2. BACKWARD PENALTY - Discourage backward movement (humping behavior)
+        backward_penalty = abs(min(0, forward_vel)) * 20.0  # Heavy penalty for moving backward
+
+        # 3. Vertical jumping reward - support forward hopping with height
         vertical_energy = abs(vertical_vel)
-        height_reward = max(0, height - self.prev_height) * 8.0  # Increased reward for upward movement
-        vertical_reward = vertical_energy * 1.2 + height_reward  # Increased vertical energy multiplier
+        height_reward = max(0, height - self.prev_height) * 5.0  # Moderate upward reward
+        vertical_reward = vertical_energy * 0.8 + height_reward
 
-        # 2. Jump height bonus - reward achieving higher absolute heights
-        jump_height_bonus = max(0, height + 0.5) * 3.0  # Reward being higher off ground
+        # 4. Jump height bonus - encourage getting off ground
+        jump_bonus = max(0, height + 0.3) * 2.0  # Small bonus for being airborne
 
-        # 3. Forward hopping reward - reduced weight to discourage walking
-        forward_reward = np.clip(forward_vel / 2.0, 0.0, 1.0) * 0.5
-
-        # 4. Hopping pattern reward - encourage periodic bouncing
-        # Reward when changing from downward to upward motion (start of hop)
+        # 5. Hopping rhythm - reward bouncing pattern for kangaroo-like motion
         hopping_pattern = 0.0
-        if self.prev_height > height and vertical_vel > 0.2:  # Coming up from bottom with higher threshold
-            hopping_pattern = 4.0  # Increased reward for bounce detection
+        if self.prev_height > height and vertical_vel > 0.15:  # Detect bounce start
+            hopping_pattern = 2.0
 
-        # 5. Air time reward - bonus for being airborne
-        air_time_bonus = 2.0 if height > 0.0 else 0.0  # Above ground level, stricter threshold
+        # 6. BIOMECHANICAL MUSCLE COORDINATION - Kangaroo-style jumping
 
-        # 6. Peak height reward - bonus for reaching new height records
-        peak_bonus = 0.0
-        if height > self.max_height_achieved * 0.9:  # Near peak height
-            peak_bonus = 1.0
+        # KNEES FOR JUMPING: Reward high knee muscle activation during upward motion
+        right_knee_activation = abs(action[1])  # right knee muscle
+        left_knee_activation = abs(action[4])   # left knee muscle
+        knee_power = (right_knee_activation + left_knee_activation) / 2.0
 
-        # 7. Leg symmetry reward - encourage both legs working together
-        # Muscles: [right_hip, right_knee, right_ankle, left_hip, left_knee, left_ankle]
-        right_leg = action[:3]  # indices 0-2
-        left_leg = action[3:]   # indices 3-5
-        symmetry_penalty = np.mean(np.abs(right_leg - left_leg))  # Penalize differences
-        symmetry_reward = (1.0 - symmetry_penalty) * 2.5  # Increased reward for similarity
+        # MASSIVE reward for knee activation during upward phases (jumping) - LARGER MOVEMENTS
+        knee_jump_reward = knee_power * vertical_vel * 100.0  # Knee power × upward velocity - MAXIMUM EMPHASIS
 
-        # 8. Control cost - small penalty for muscle usage
-        ctrl_cost = 0.0005 * np.sum(np.square(action))
+        # ANKLES FOR PROPULSION: Reward ankle muscle activation for downward push during jumps
+        right_ankle_activation = abs(action[2])  # right ankle muscle
+        left_ankle_activation = abs(action[5])   # left ankle muscle
+        ankle_power = (right_ankle_activation + left_ankle_activation) / 2.0
 
-        # Total reward - adjusted weights to favor bigger hops
-        reward = (vertical_reward * 0.4 +
-                 jump_height_bonus * 0.15 +
-                 forward_reward * 0.05 +
-                 hopping_pattern * 0.15 +
-                 air_time_bonus * 0.1 +
-                 peak_bonus * 0.05 +
-                 symmetry_reward * 0.1 -
+        # MASSIVE reward for ankle activation during upward jumps (plantarflexion for thrust)
+        ankle_jump_reward = ankle_power * abs(vertical_vel) * 80.0  # Ankle power during jump takeoff
+        # Additional reward for ankle activation with forward velocity (propulsion)
+        ankle_propulsion_reward = ankle_power * max(0, forward_vel) * 20.0  # Forward thrust bonus
+
+        # BACK FOR BALANCING: Moderate reward for hip/back muscle activation
+        right_hip_activation = abs(action[0])  # right hip (back) muscle
+        left_hip_activation = abs(action[3])   # left hip (back) muscle
+        back_balance = (right_hip_activation + left_hip_activation) / 2.0
+
+        # Moderate reward for back activation (stability, not too much)
+        back_balance_reward = back_balance * 3.0
+
+        # EXTRA KNEE MUSCLE ACTIVATION BONUS - Encourage larger knee movements
+        knee_muscle_bonus = knee_power * 25.0  # MASSIVE bonus for knee muscle usage
+
+        # MODIFIED UNISON PENALTY - Allow knee activation differences, penalize hip/ankle asymmetry
+        # Measure muscle activation asymmetry - focus on hip and ankle (not knee)
+        hip_asymmetry = abs(action[0] - action[3])  # hip muscles (back)
+        ankle_asymmetry = abs(action[2] - action[5])  # ankle muscles
+        muscle_asymmetry = (hip_asymmetry + ankle_asymmetry) / 2.0  # Only penalize hip/ankle differences
+
+        # Measure joint velocity asymmetry - focus on hip and ankle velocities
+        hip_vel_asymmetry = abs(self.data.qvel[3] - self.data.qvel[6])  # hip velocities
+        ankle_vel_asymmetry = abs(self.data.qvel[5] - self.data.qvel[8])  # ankle velocities
+        velocity_asymmetry = (hip_vel_asymmetry + ankle_vel_asymmetry) / 2.0
+
+        # Combined asymmetry penalty - allow knee differences, penalize hip/ankle differences
+        total_asymmetry = (muscle_asymmetry + velocity_asymmetry) / 2.0
+        unison_penalty = total_asymmetry * 20.0  # Strong penalty for hip/ankle asymmetry
+
+        # 7. Control cost - reduced since we want muscle activation
+        ctrl_cost = 0.0001 * np.sum(np.square(action))
+
+        # TOTAL REWARD - COORDINATED KNEE-ANKLE JUMPING
+        reward = (forward_reward * 0.18 +          # FORWARD PROGRESS
+                 knee_jump_reward * 0.30 +         # KNEES FOR JUMPING - STRONG
+                 knee_muscle_bonus * 0.20 +        # EXTRA KNEE MUSCLE ACTIVATION
+                 ankle_jump_reward * 0.25 +        # ANKLES FOR JUMP THRUST - NEW DOMINANT
+                 ankle_propulsion_reward * 0.05 +  # ANKLES FOR PROPULSION
+                 back_balance_reward * 0.01 +      # BACK FOR BALANCING
+                 vertical_reward * 0.01 +          # BASIC VERTICAL MOTION
+                 jump_bonus * 0.05 -               # JUMP BONUS
+                 backward_penalty * 0.10 -         # PREVENT BACKWARD MOVEMENT
+                 unison_penalty * 0.02 -           # MINIMAL UNISON PENALTY
                  ctrl_cost)
 
         self.prev_height = height
@@ -198,7 +240,22 @@ class MuscleKangarooEnv(gym.Env):
         is_fallen = height < -1.0  # Allow deeper crouches for hopping
         is_unbalanced = np.abs(pitch) > 2.0  # More lenient pitch limit
 
-        return is_fallen or is_unbalanced
+        # TERMINATE IF HIPS/ANKLES ARE SEPARATED - Allow knee differences for jumping
+        # Check hip and ankle asymmetry only (allow knee differences)
+        hip_asymmetry = abs(self.current_action[0] - self.current_action[3])  # hip muscles
+        ankle_asymmetry = abs(self.current_action[2] - self.current_action[5])  # ankle muscles
+        muscle_asymmetry = (hip_asymmetry + ankle_asymmetry) / 2.0
+
+        # Check hip and ankle velocity asymmetry
+        hip_vel_asymmetry = abs(self.data.qvel[3] - self.data.qvel[6])  # hip velocities
+        ankle_vel_asymmetry = abs(self.data.qvel[5] - self.data.qvel[8])  # ankle velocities
+        velocity_asymmetry = (hip_vel_asymmetry + ankle_vel_asymmetry) / 2.0
+
+        # Combined asymmetry check - terminate if hips/ankles are too separated
+        total_asymmetry = (muscle_asymmetry + velocity_asymmetry) / 2.0
+        legs_separated = total_asymmetry > 0.4  # Allow more flexibility for jumping
+
+        return is_fallen or is_unbalanced or legs_separated
 
     def render(self):
         if self.render_mode == "human":

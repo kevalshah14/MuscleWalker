@@ -40,9 +40,10 @@ def main():
         # Use tracking camera mode for smooth following with user control
         viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
         viewer.cam.trackbodyid = 1  # Track the torso
-        viewer.cam.distance = 4.0   # Slightly farther for hopping
-        viewer.cam.azimuth = 90
-        viewer.cam.elevation = -15
+        viewer.cam.distance = 3.5   # Closer for better hopping view
+        viewer.cam.azimuth = 90     # Side view
+        viewer.cam.elevation = -20  # Slightly lower angle
+        viewer.cam.lookat[2] = 0.5  # Look at torso height
 
         obs, _ = env.reset()
 
@@ -54,14 +55,19 @@ def main():
             obs, reward, terminated, truncated, info = env.step(action)
 
             # Print hopping info occasionally
-            if env.data.time % 1.0 < 0.05:  # Print every ~1 second
+            if env.data.time % 0.5 < 0.05:  # Print every ~0.5 second
+                height = env.data.qpos[1]
+                forward_pos = env.data.qpos[0]
+                # Show muscle activations: [hip_right, knee_right, ankle_right, hip_left, knee_left, ankle_left]
+                muscle_activations = env.data.ctrl[:6] if hasattr(env.data, 'ctrl') else [0]*6
+                reward_display = reward
                 print(".3f")
 
             # Sync viewer
             viewer.sync()
 
-            # Slow down playback for better visualization
-            time.sleep(0.03)  # ~30 FPS for hopping
+            # Slow down playback for better visualization (slow)
+            time.sleep(0.10)  # ~10 FPS for very clear hopping visualization
 
             # Reset if episode ends
             if terminated or truncated:
