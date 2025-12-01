@@ -146,6 +146,8 @@ class MuscleWalkerEnv(gym.Env):
         # 0: rootx (forward)
         # 1: rootz (height)
         # 2: rooty (pitch)
+        # 3: right_hip, 4: right_knee, 5: right_ankle
+        # 6: left_hip, 7: left_knee, 8: left_ankle
 
         # 1. Upright reward (maintain pitch near 0)
         # Using cos(pitch) like in MPPI
@@ -157,24 +159,39 @@ class MuscleWalkerEnv(gym.Env):
         height = self.data.qpos[1]
         standing = np.clip(1.0 - 1.0 * np.abs(height), 0.0, 1.0)
 
-        # 3. Combined standing reward (like MPPI)
-        # standing_reward = (3*standing + upright)/4
-        standing_reward = (3.0 * standing + upright) / 4.0
+        # 3. Joint posture rewards - encourage natural walking posture
+        # Based on user feedback: control=1 should give straight posture
+        # Since control=1 activates flexors which straighten knees but flex hips,
+        # we need to reward the corresponding joint angles
 
-        # 4. Forward movement reward
+        # For knees: control=1 gives straight knees (-90°), so reward straight knees
+        right_knee = self.data.qpos[4]
+        left_knee = self.data.qpos[7]
+        right_knee_posture = np.clip((right_knee + 90) / 90, 0.0, 1.0)  # 1 when straight
+        left_knee_posture = np.clip((left_knee + 90) / 90, 0.0, 1.0)    # 1 when straight
+        knee_posture = (right_knee_posture + left_knee_posture) / 2.0
+
+        # For hips: control=1 gives flexed hips (~85°), but user wants control=1 = straight
+        # Since mechanical mapping is opposite, we need to invert the hip reward
+        # Hip range 0-90°, where 0° = straight. So reward smaller hip angles.
+        right_hip = self.data.qpos[3]
+        left_hip = self.data.qpos[6]
+        right_hip_straight = np.clip(1.0 - (right_hip / (np.pi/2)), 0.0, 1.0)  # 1 when straight (0°)
+        left_hip_straight = np.clip(1.0 - (left_hip / (np.pi/2)), 0.0, 1.0)    # 1 when straight (0°)
+        hip_posture = (right_hip_straight + left_hip_straight) / 2.0
+
+        # 4. Combined standing reward (like MPPI) - now includes posture
+        # standing_reward = (3*standing + upright + knee_posture + hip_posture)/6
+        standing_reward = (2.0 * standing + upright + knee_posture + hip_posture) / 5.0
+
+        # 5. Forward movement reward
         # MPPI uses: move_reward = clip(state[10]/1.0, 0.0, 1)
         # state[10] was likely forward velocity in their state representation
         forward_vel = self.data.qvel[0]
         move_reward = np.clip(forward_vel / 1.0, 0.0, 1.0)
 
-        # 5. Multiplicative reward structure (like MPPI)
-        # reward = standing_reward * move_reward
+        # 6. Multiplicative reward structure (EXACTLY like MPPI)
         reward = standing_reward * move_reward
-
-        # Optional: Add small control penalty for energy efficiency
-        ctrl_cost = 0.005 * np.sum(np.square(action))
-
-        reward = reward - ctrl_cost
 
         return reward
 
