@@ -83,7 +83,7 @@ def main():
             viewer.sync()
 
             # Slow down playback for better visualization (moderate speed for trotting)
-            time.sleep(0.08)  # ~12.5 FPS for clear trotting visualization
+            time.sleep(0.01)  # ~25 FPS for clear trotting visualization
 
             # Reset if episode ends
             if terminated or truncated:
