@@ -5,8 +5,7 @@ import mujoco
 import numpy as np
 import os
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
-from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 
 
@@ -38,10 +37,12 @@ class MuscleKangarooEnv(gym.Env):
         self.terminate_on_fall = terminate_on_fall
         self.auto_render = auto_render
 
-        # Action space: 6 muscles, range [0, 1]
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.model.nu,), dtype=np.float32)
+        # Action space: 6 muscles, PPO outputs in [-1, 1]
+        self.action_space = spaces.Box(
+            low=-1.0, high=1.0, shape=(self.model.nu,), dtype=np.float32
+        )
 
-        # Observation space: same as walker but track vertical velocity more
+        # Observation space: rootx removed for translation invariance
         obs_dim = (self.model.nq - 1) + self.model.nv
         if self.model.na > 0:
             obs_dim += self.model.na
@@ -50,7 +51,7 @@ class MuscleKangarooEnv(gym.Env):
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float64
         )
 
-        # Match MPPI startup
+        # Initialize state
         mujoco.mj_resetData(self.model, self.data)
         mujoco.mj_forward(self.model, self.data)
 
@@ -59,12 +60,61 @@ class MuscleKangarooEnv(gym.Env):
 
         self.viewer = None
 
-        # For hopping: track previous height for reward calculation
+        # Hopping-related tracking
         self.prev_height = 0.0
         self.max_height_achieved = 0.0
 
-        # Store current action for termination checks
-        self.current_action = np.zeros(6)  # 6 muscle actions
+        self.current_action = np.zeros(self.model.nu, dtype=np.float64)
+
+        # Track previous stuff for reward
+        self.prev_x = 0.0
+        self.prev_any_contact = True
+        self.prev_left_contact = True
+        self.prev_right_contact = True
+        self.prev_ctrl = np.zeros(self.model.nu, dtype=np.float64)
+
+        # Cache geom ids for contact checks
+        self.left_foot_geom = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "left_foot"
+        )
+        self.right_foot_geom = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "right_foot"
+        )
+        self.floor_geom = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "floor"
+        )
+        if (
+            self.left_foot_geom < 0
+            or self.right_foot_geom < 0
+            or self.floor_geom < 0
+        ):
+            raise ValueError(
+                "Could not find 'left_foot', 'right_foot', or 'floor' geoms in the model."
+            )
+
+        # Cache torso body id to get world position/velocity
+        self.torso_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "torso"
+        )
+        if self.torso_body_id < 0:
+            raise ValueError("Body 'torso' not found in model.")
+
+        # Reward weights (tune as needed)
+        self.w_forward = 5.0          # forward progress
+        self.w_height = 1.0           # stay tall
+        self.w_posture = 0.5          # penalize torso pitch
+        self.w_flight = 0.5           # being in the air
+        self.w_takeoff = 1.0          # clean takeoff
+        self.w_stance = 0.05          # small penalty for staying on ground
+        self.w_contact_sync = 0.3     # both feet same contact state
+        self.w_action_sym = 0.3       # symmetric muscle use
+        self.w_energy = 0.05          # muscle effort
+        self.w_smooth = 0.1           # changes in muscle activations
+
+        # Height & posture targets
+        self.desired_min_height = 1.0   # encourage staying above this
+        self.max_height_for_bonus = 1.6 # cap height bonus
+        self.max_forward_step = 0.25    # clip crazy progress
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -74,9 +124,12 @@ class MuscleKangarooEnv(gym.Env):
         qpos = self.init_qpos.copy()
         qvel = self.init_qvel.copy()
 
-        # Add noise
-        joint_noise = self.np_random.uniform(low=-0.01, high=0.01, size=self.model.nq-3)
-        qpos[3:] += joint_noise
+        # Add small noise to joints (not to rootx/rootz/rooty)
+        if self.model.nq > 3:
+            joint_noise = self.np_random.uniform(
+                low=-0.01, high=0.01, size=self.model.nq - 3
+            )
+            qpos[3:] += joint_noise
         qvel += self.np_random.uniform(low=-0.05, high=0.05, size=self.model.nv)
 
         self.data.qpos[:] = qpos
@@ -85,25 +138,34 @@ class MuscleKangarooEnv(gym.Env):
 
         mujoco.mj_forward(self.model, self.data)
 
-        # Let settle but shorter than walking
+        # Let it settle
         settle_steps = 100
         for _ in range(settle_steps):
             mujoco.mj_step(self.model, self.data)
 
-        # Initialize hopping tracking
-        self.prev_height = self.data.qpos[1]
-        self.max_height_achieved = self.data.qpos[1]
+        # Initialize tracking using *world* torso position
+        torso_pos = self.data.xpos[self.torso_body_id]
+        self.prev_height = torso_pos[2]
+        self.max_height_achieved = torso_pos[2]
+        self.prev_x = torso_pos[0]
+
+        left_c, right_c = self._get_foot_contacts()
+        self.prev_left_contact = left_c
+        self.prev_right_contact = right_c
+        self.prev_any_contact = left_c or right_c
+        self.prev_ctrl[:] = self.data.ctrl[:]
+
+        self.current_action = np.zeros(self.model.nu, dtype=np.float64)
 
         return self._get_obs(), {}
 
     def step(self, action):
-        # Store current action for termination checks
+        # Store current action (PPO outputs in [-1, 1])
         self.current_action = action
 
         # Scale action from [-1, 1] to [0, 1] for muscles
         ctrl = 0.5 * (action + 1.0)
         ctrl = np.clip(ctrl, 0.0, 1.0)
-
         self.data.ctrl[:] = ctrl
 
         # Step simulation
@@ -111,14 +173,17 @@ class MuscleKangarooEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
 
         obs = self._get_obs()
-        reward = self._get_hopping_reward(action)
+        reward = self._get_hopping_reward()
         terminated = self._is_terminated()
         truncated = False
 
+        torso_pos = self.data.xpos[self.torso_body_id]
+        torso_vel = self.data.subtree_linvel[self.torso_body_id]
+
         info = {
-            "x_velocity": self.data.qvel[0],
-            "z_height": self.data.qpos[1],
-            "vertical_velocity": self.data.qvel[1]
+            "x_velocity": float(torso_vel[0]),
+            "z_height": float(torso_pos[2]),
+            "vertical_velocity": float(torso_vel[2]),
         }
 
         if self.auto_render:
@@ -137,131 +202,161 @@ class MuscleKangarooEnv(gym.Env):
 
         return np.concatenate([qpos, qvel])
 
-    def _get_hopping_reward(self, action):
-        height = self.data.qpos[1]
-        vertical_vel = self.data.qvel[1]
-        forward_vel = self.data.qvel[0]
+    # ---------- CONTACTS ----------
 
-        # Update max height achieved
-        self.max_height_achieved = max(self.max_height_achieved, height)
+    def _get_foot_contacts(self):
+        """
+        Check if left/right foot are in contact with the floor.
+        """
+        left_contact = False
+        right_contact = False
 
-        # 1. FORWARD PROGRESS - PRIMARY OBJECTIVE: Move forward like a real kangaroo
-        forward_reward = forward_vel * 10.0  # Strong reward for forward velocity
+        for i in range(self.data.ncon):
+            c = self.data.contact[i]
+            g1 = c.geom1
+            g2 = c.geom2
 
-        # 2. BACKWARD PENALTY - Discourage backward movement (humping behavior)
-        backward_penalty = abs(min(0, forward_vel)) * 20.0  # Heavy penalty for moving backward
+            # left foot vs floor
+            if (
+                (g1 == self.left_foot_geom and g2 == self.floor_geom)
+                or (g2 == self.left_foot_geom and g1 == self.floor_geom)
+            ):
+                left_contact = True
 
-        # 3. Vertical jumping reward - support forward hopping with height
-        vertical_energy = abs(vertical_vel)
-        height_reward = max(0, height - self.prev_height) * 5.0  # Moderate upward reward
-        vertical_reward = vertical_energy * 0.8 + height_reward
+            # right foot vs floor
+            if (
+                (g1 == self.right_foot_geom and g2 == self.floor_geom)
+                or (g2 == self.right_foot_geom and g1 == self.floor_geom)
+            ):
+                right_contact = True
 
-        # 4. Jump height bonus - encourage getting off ground
-        jump_bonus = max(0, height + 0.3) * 2.0  # Small bonus for being airborne
+        return left_contact, right_contact
 
-        # 5. Hopping rhythm - reward bouncing pattern for kangaroo-like motion
-        hopping_pattern = 0.0
-        if self.prev_height > height and vertical_vel > 0.15:  # Detect bounce start
-            hopping_pattern = 2.0
+    # ---------- REWARD ----------
 
-        # 6. BIOMECHANICAL MUSCLE COORDINATION - Kangaroo-style jumping
+    def _get_hopping_reward(self):
+        """
+        Reward designed for kangaroo-like hopping:
+        - Move forward
+        - Stay upright and tall
+        - Periodic hops with clear flight phases
+        - Legs in phase (both on/off together)
+        - Symmetric muscle activations
+        - Energy & smoothness penalties
+        """
+        # World pose & velocity of torso
+        torso_pos = self.data.xpos[self.torso_body_id]
+        torso_vel = self.data.subtree_linvel[self.torso_body_id]
 
-        # KNEES FOR JUMPING: Reward high knee muscle activation during upward motion
-        right_knee_activation = abs(action[1])  # right knee muscle
-        left_knee_activation = abs(action[4])   # left knee muscle
-        knee_power = (right_knee_activation + left_knee_activation) / 2.0
+        x = float(torso_pos[0])   # forward position
+        z = float(torso_pos[2])   # height
+        vx = float(torso_vel[0])  # forward velocity
+        vz = float(torso_vel[2])  # vertical velocity
 
-        # MASSIVE reward for knee activation during upward phases (jumping) - LARGER MOVEMENTS
-        knee_jump_reward = knee_power * vertical_vel * 100.0  # Knee power × upward velocity - MAXIMUM EMPHASIS
+        # Pitch angle still comes from qpos (rooty joint)
+        pitch = float(self.data.qpos[2])
 
-        # ANKLES FOR PROPULSION: Reward ankle muscle activation for downward push during jumps
-        right_ankle_activation = abs(action[2])  # right ankle muscle
-        left_ankle_activation = abs(action[5])   # left ankle muscle
-        ankle_power = (right_ankle_activation + left_ankle_activation) / 2.0
+        # Forward progress (clip large jumps to keep reward smooth)
+        forward_progress = x - self.prev_x
+        self.prev_x = x
+        forward_progress = np.clip(forward_progress, 0.0, self.max_forward_step)
+        r_forward = self.w_forward * forward_progress
 
-        # MASSIVE reward for ankle activation during upward jumps (plantarflexion for thrust)
-        ankle_jump_reward = ankle_power * abs(vertical_vel) * 80.0  # Ankle power during jump takeoff
-        # Additional reward for ankle activation with forward velocity (propulsion)
-        ankle_propulsion_reward = ankle_power * max(0, forward_vel) * 20.0  # Forward thrust bonus
+        # Stay upright & tall
+        height_bonus = np.clip(
+            z - self.desired_min_height, 0.0, self.max_height_for_bonus - self.desired_min_height
+        )
+        posture_penalty = pitch ** 2  # rad^2
+        r_posture = self.w_height * height_bonus - self.w_posture * posture_penalty
 
-        # BACK FOR BALANCING: Moderate reward for hip/back muscle activation
-        right_hip_activation = abs(action[0])  # right hip (back) muscle
-        left_hip_activation = abs(action[3])   # left hip (back) muscle
-        back_balance = (right_hip_activation + left_hip_activation) / 2.0
+        # ---- Contacts & hopping ----
+        left_contact, right_contact = self._get_foot_contacts()
+        any_contact = left_contact or right_contact
+        no_contact = not any_contact
 
-        # Moderate reward for back activation (stability, not too much)
-        back_balance_reward = back_balance * 3.0
+        just_takeoff = self.prev_any_contact and no_contact
+        just_landing = (not self.prev_any_contact) and any_contact  # currently unused, but could be rewarded
+        self.prev_any_contact = any_contact
 
-        # EXTRA KNEE MUSCLE ACTIVATION BONUS - Encourage larger knee movements
-        knee_muscle_bonus = knee_power * 25.0  # MASSIVE bonus for knee muscle usage
+        # Reward flight phases (both feet off ground)
+        r_flight = self.w_flight * float(no_contact)
 
-        # MODIFIED UNISON PENALTY - Allow knee activation differences, penalize hip/ankle asymmetry
-        # Measure muscle activation asymmetry - focus on hip and ankle (not knee)
-        hip_asymmetry = abs(action[0] - action[3])  # hip muscles (back)
-        ankle_asymmetry = abs(action[2] - action[5])  # ankle muscles
-        muscle_asymmetry = (hip_asymmetry + ankle_asymmetry) / 2.0  # Only penalize hip/ankle differences
+        # Bonus at takeoff proportional to positive vertical velocity
+        if just_takeoff:
+            pos_vz = np.clip(vz, 0.0, 4.0)
+            r_takeoff = self.w_takeoff * pos_vz
+        else:
+            r_takeoff = 0.0
 
-        # Measure joint velocity asymmetry - focus on hip and ankle velocities
-        hip_vel_asymmetry = abs(self.data.qvel[3] - self.data.qvel[6])  # hip velocities
-        ankle_vel_asymmetry = abs(self.data.qvel[5] - self.data.qvel[8])  # ankle velocities
-        velocity_asymmetry = (hip_vel_asymmetry + ankle_vel_asymmetry) / 2.0
+        # Small penalty for being in stance (encourages rhythmic bouncing)
+        r_stance = -self.w_stance * float(any_contact)
 
-        # Combined asymmetry penalty - allow knee differences, penalize hip/ankle differences
-        total_asymmetry = (muscle_asymmetry + velocity_asymmetry) / 2.0
-        unison_penalty = total_asymmetry * 20.0  # Strong penalty for hip/ankle asymmetry
+        r_hop = r_flight + r_takeoff + r_stance
 
-        # 7. Control cost - reduced since we want muscle activation
-        ctrl_cost = 0.0001 * np.sum(np.square(action))
+        # ---- Leg synchronization ----
+        # Encourage both feet to be in the same contact state (hopping, not walking)
+        contact_sync = 1.0 if left_contact == right_contact else -1.0
+        r_contact_sync = self.w_contact_sync * contact_sync
 
-        # TOTAL REWARD - COORDINATED KNEE-ANKLE JUMPING
-        reward = (forward_reward * 0.18 +          # FORWARD PROGRESS
-                 knee_jump_reward * 0.30 +         # KNEES FOR JUMPING - STRONG
-                 knee_muscle_bonus * 0.20 +        # EXTRA KNEE MUSCLE ACTIVATION
-                 ankle_jump_reward * 0.25 +        # ANKLES FOR JUMP THRUST - NEW DOMINANT
-                 ankle_propulsion_reward * 0.05 +  # ANKLES FOR PROPULSION
-                 back_balance_reward * 0.01 +      # BACK FOR BALANCING
-                 vertical_reward * 0.01 +          # BASIC VERTICAL MOTION
-                 jump_bonus * 0.05 -               # JUMP BONUS
-                 backward_penalty * 0.10 -         # PREVENT BACKWARD MOVEMENT
-                 unison_penalty * 0.02 -           # MINIMAL UNISON PENALTY
-                 ctrl_cost)
+        # Symmetric muscle activations (left vs right)
+        ctrl = self.data.ctrl.copy()  # in [0, 1]
 
-        self.prev_height = height
-        return reward
+        # hip/knee/ankle: right (0,1,2), left (3,4,5)
+        hip_sym = 1.0 - abs(ctrl[0] - ctrl[3])
+        knee_sym = 1.0 - abs(ctrl[1] - ctrl[4])
+        ankle_sym = 1.0 - abs(ctrl[2] - ctrl[5])
+
+        sym_mean = (hip_sym + knee_sym + ankle_sym) / 3.0
+        r_action_sym = self.w_action_sym * sym_mean
+
+        # ---- Energy & smoothness penalties ----
+        energy_cost = self.w_energy * float(np.sum(ctrl ** 2))
+
+        if self.prev_ctrl is not None:
+            smooth_cost = self.w_smooth * float(np.sum((ctrl - self.prev_ctrl) ** 2))
+        else:
+            smooth_cost = 0.0
+        self.prev_ctrl = ctrl.copy()
+
+        # Total reward
+        reward = (
+            r_forward
+            + r_posture
+            + r_hop
+            + r_contact_sync
+            + r_action_sym
+            - energy_cost
+            - smooth_cost
+        )
+
+        # Track height for debugging
+        self.prev_height = z
+        self.max_height_achieved = max(self.max_height_achieved, z)
+
+        return float(reward)
+
+    # ---------- TERMINATION ----------
 
     def _is_terminated(self):
         if not self.terminate_on_fall:
             return False
 
-        height = self.data.qpos[1]
-        pitch = self.data.qpos[2]
+        # Use torso world height, not qpos[1]
+        height = float(self.data.xpos[self.torso_body_id, 2])
+        pitch = float(self.data.qpos[2])
 
-        # More lenient termination for hopping
-        is_fallen = height < -1.0  # Allow deeper crouches for hopping
-        is_unbalanced = np.abs(pitch) > 2.0  # More lenient pitch limit
+        # Consider fallen if too low or too tilted
+        is_fallen = height < 0.7          # now 0.7 is meaningful (torso at ~1.3 when upright)
+        is_unbalanced = abs(pitch) > 1.0  # ~57 degrees
 
-        # TERMINATE IF HIPS/ANKLES ARE SEPARATED - Allow knee differences for jumping
-        # Check hip and ankle asymmetry only (allow knee differences)
-        hip_asymmetry = abs(self.current_action[0] - self.current_action[3])  # hip muscles
-        ankle_asymmetry = abs(self.current_action[2] - self.current_action[5])  # ankle muscles
-        muscle_asymmetry = (hip_asymmetry + ankle_asymmetry) / 2.0
+        return bool(is_fallen or is_unbalanced)
 
-        # Check hip and ankle velocity asymmetry
-        hip_vel_asymmetry = abs(self.data.qvel[3] - self.data.qvel[6])  # hip velocities
-        ankle_vel_asymmetry = abs(self.data.qvel[5] - self.data.qvel[8])  # ankle velocities
-        velocity_asymmetry = (hip_vel_asymmetry + ankle_vel_asymmetry) / 2.0
-
-        # Combined asymmetry check - terminate if hips/ankles are too separated
-        total_asymmetry = (muscle_asymmetry + velocity_asymmetry) / 2.0
-        legs_separated = total_asymmetry > 0.4  # Allow more flexibility for jumping
-
-        return is_fallen or is_unbalanced or legs_separated
+    # ---------- RENDER / CLOSE ----------
 
     def render(self):
         if self.render_mode == "human":
             if self.viewer is None:
                 self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-
             self.viewer.sync()
 
     def close(self):
@@ -331,7 +426,6 @@ if __name__ == "__main__":
         batch_size=64,
         gamma=0.99,
         ent_coef=0.01,
-        # Adjust for hopping dynamics
         clip_range=0.2,
         n_epochs=10,
     )
