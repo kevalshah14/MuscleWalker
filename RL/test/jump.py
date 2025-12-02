@@ -61,7 +61,7 @@ def main():
                 # Show muscle activations: [hip_right, knee_right, ankle_right, hip_left, knee_left, ankle_left]
                 muscle_activations = env.data.ctrl[:6] if hasattr(env.data, 'ctrl') else [0]*6
                 reward_display = reward
-                print(".3f")
+                print(f"Reward: {reward_display:.3f}")
                 # Show if muscles are activated (should be > 0.1 for meaningful force)
                 strong_muscles = sum(1 for m in muscle_activations if m > 0.1)
                 print(f"Active muscles: {strong_muscles}/6, Max activation: {max(muscle_activations):.3f}")
