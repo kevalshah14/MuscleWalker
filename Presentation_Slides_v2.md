@@ -11,17 +11,16 @@
 
 ### Slide 2: Problem Statement
 *   **The rigidity of traditional robotics:**
-    *   Servo motors are stiff, heavy, and inefficient for dynamic walking.
-    *   They require precise kinematic planning (inverse kinematics).
+    *   Traditional robots often use stiff, high-torque electric motors.
+    *   Leads to unnatural, jerky movements and low energy efficiency.
 *   **The "Bio" Gap:**
-    *   Animals don't calculate ZMP (Zero Moment Point).
-    *   Animals use compliant tendons to store energy and handle uneven terrain.
-    *   *Problem:* Controlling these soft, non-linear muscle actuators is mathematically difficult for traditional control theory.
+    *   Biological systems utilize compliant muscle-tendon units that allow for fluid motion and energy storage.
+    *   *Problem:* Controlling these highly non-linear, redundant actuation systems is mathematically difficult for traditional control theory.
 
 ### Slide 3: Biological Inspiration
-*   **Model Organism:** The Bipedal Mammal (Human / Kangaroo).
+*   **Model Organism:** The Human Musculoskeletal System.
 *   **Key Features Emulated:**
-    *   **Compliance:** Tendons act as springs (Series Elastic Actuators).
+    *   **Compliance:** Tendons act as springs (Series Elastic Actuators) to store energy, like the Achilles tendon.
     *   **Redundancy:** Multiple muscles for one joint (agonist-antagonist pairs).
     *   **Morphology:** Light legs, heavy torso (low distal mass) for efficient swinging.
 
@@ -33,12 +32,11 @@
     *   *Relevance:* Our project explores the underlying control logic (Reinforcement Learning) that likely powers such compliant bio-robots.
 
 ### Slide 5: Method - High Level Overview
-*   **Simulation Engine:** MuJoCo (Physics with contact dynamics).
-*   **The Loop:**
-    1.  **Environment:** Muscle-driven biped.
-    2.  **Agent:** Neural Network (PPO) or Planner (MPPI).
-    3.  **Action:** Muscle Activation [0, 1].
-    4.  **Feedback:** New State + Reward.
+*   **Flowchart of Progress:**
+    1.  **Modeling:** Created a single tendon-based muscle unit in MuJoCo.
+    2.  **Integration:** Built a full bipedal walker model using these tendon actuators.
+    3.  **Testing (MPPI):** Used Model Predictive Path Integral (MPPI) to test the model's dynamics and balance capabilities.
+    4.  **Training (RL):** Trained different policies (Walk, Trot, Jump) using Reinforcement Learning (PPO) to achieve stable locomotion.
 
 ### Slide 6: Muscle Modeling (1/3) - The Concept
 *   **Hill-Type Muscle Model:**
@@ -48,17 +46,20 @@
     *   A stretched muscle pulls harder (passive stability).
     *   A fast-contracting muscle produces less force (damping).
 
-### Slide 7: Muscle Modeling (2/3) - Implementation
-*   **MuJoCo XML Setup:**
-    *   **Sites:** Attachment points on bones.
-    *   **Spatial Tendons:** Defined paths that wrap around joints (e.g., over the knee cap).
-    *   **Moment Arms:** The leverage changes as the joint moves (e.g., pulling the knee is easier when it's bent).
+### Slide 7: Muscle Modeling (2/3) - Single Tendon Model
+*   **MuJoCo Implementation:**
+    *   **Sites:** Attachment points on bones (Origin & Insertion).
+    *   **Spatial Tendon:** The path wrapping around the joint.
+    *   **Actuator:** The muscle pulls on this tendon.
+*   **Key Property:**
+    *   **Active Tendon (Flexor):** Low stiffness, controlled by the agent.
+    *   **Passive Tendon (Extensor):** High stiffness, acts as a spring to support weight.
 
-### Slide 8: Muscle Modeling (3/3) - Actuation Dynamics
-*   **Active vs. Passive:**
-    *   **Flexors (Active):** Low passive stiffness, high control authority. Used to swing the leg.
-    *   **Extensors (Passive/Active):** High passive stiffness (stiff springs).
-    *   *Function:* Support the robot's weight against gravity without using energy (passive standing).
+### Slide 8: Muscle Modeling (3/3) - The Whole Model
+*   **Full Biped Architecture:**
+    *   **Pairs:** 6 Agonist-Antagonist pairs (Hip, Knee, Ankle for both legs).
+    *   **Total Actuators:** 12 tendons, but simplified to 6 active controls (Agent controls Flexors, Extensors are passive springs).
+*   **Result:** A 7-link biped that stands passively but needs active control to walk.
 
 ### Slide 9: MPPI (Model Predictive Path Integral)
 *   **What is it?** A sampling-based control strategy.
@@ -91,12 +92,14 @@
 
 ### Slide 13: Task 1 - Walk Reward
 *   **Goal:** Stable, forward locomotion.
-*   **Formula:**
-    *   $R = (Standing \times Upright \times Posture) \times Velocity$
+*   **Equation:**
+    *   $r_{standing} = \frac{2 \cdot (1 - |height_{err}|) + \frac{\cos(\theta) + 1}{2} + posture_{knee} + posture_{hip}}{5}$
+    *   $r_{move} = \text{clip}(v_x, 0, 1)$
+    *   $R_{total} = r_{standing} \times r_{move}$
 *   **Key Components:**
     *   *Standing:* Height > 1.0m.
     *   *Velocity:* Target speed 1.0 m/s.
-    *   *Constraint:* If Velocity = 0, Reward = 0 (forces movement).
+    *   *Constraint:* Multiplicative structure ensures $R=0$ if robot stops.
 
 ### Slide 14: Task 1 - Walk Graphs
 *   *Display TensorBoard screenshot for Walking*
@@ -113,10 +116,12 @@
 
 ### Slide 16: Task 2 - Trot Reward
 *   **Goal:** Faster, rhythmic movement.
-*   **Changes:**
+*   **Equation:**
+    *   $r_{trot} = r_{walk\_standing} \times \text{clip}(\frac{v_x}{1.5}, 0, 1) - c_{control} \cdot ||u||^2$
+*   **Key Differences:**
     *   **Target Speed:** Increased to 1.5 m/s.
-    *   **Inputs:** Added *Phase* (sinewave) and *Previous Action* to the neural network.
-    *   *Reasoning:* Trotting requires timing and rhythm, not just reaction.
+    *   **Inputs:** Added *Phase* ($\phi$) and *Previous Action* ($u_{t-1}$) to observations.
+    *   *Reasoning:* Trotting requires explicit timing and rhythm ($\phi$), not just reactive feedback.
 
 ### Slide 17: Task 2 - Trot Graphs
 *   *Display TensorBoard screenshot for Trotting*
@@ -130,26 +135,26 @@
     *   More dynamic "bouncing" gait.
     *   Clear flight phases (briefly airborne).
 
-### Slide 19: Task 3 - Jump (Kangaroo) Reward
-*   **Goal:** High vertical hops with synchronous legs.
-*   **The Formula:**
-    *   $R = r_{flight} + r_{takeoff} + r_{sync} + r_{height}$
+### Slide 19: Task 3 - Dynamic Jumping Reward
+*   **Goal:** Explosive vertical jumps and stable landings (Human Athletics).
+*   **Equation:**
+    *   $R = w_f \cdot \mathbb{I}(air) + w_t \cdot v_{z,takeoff} + w_s \cdot \text{sync}(L,R) + w_h \cdot z_{height} - w_e \cdot ||u||^2$
 *   **Key Terms:**
-    *   **Flight Bonus:** Big reward for having NO feet on the ground.
-    *   **Contact Sync:** Penalty if feet touch the ground at different times.
-    *   **Takeoff:** Bonus for vertical velocity *at the moment* of leaving the ground.
+    *   **Flight ($\mathbb{I}(air)$):** Binary reward for having NO feet on the ground.
+    *   **Sync:** Penalty if feet touch the ground at different times.
+    *   **Takeoff ($v_{z,takeoff}$):** Bonus for positive vertical velocity at the moment of liftoff.
 
-### Slide 20: Task 3 - Jump Graphs
+### Slide 20: Task 3 - Jumping Graphs
 *   *Display TensorBoard screenshot for Jumping*
 *   **Analysis:**
-    *   Oscillating reward (jumping is cyclic).
-    *   High energy cost (jumping takes effort).
+    *   Oscillating reward (cyclic jumping motion).
+    *   High energy cost (explosive movements require high muscle activation).
 
-### Slide 21: Task 3 - Jump Video
+### Slide 21: Task 3 - Jumping Video
 *   **(Placeholder for Video/Demo)**
 *   *What to observe:*
-    *   Synchronized leg movement.
-    *   Storing energy in the landing (elasticity).
+    *   Synchronized leg extension (squat-jump mechanics).
+    *   Energy storage in the tendons during landing (Plyometrics).
 
 ### Slide 22: Discussion & Challenges
 *   **The "Local Minima" Trap:**
