@@ -102,5 +102,4 @@ The project successfully demonstrates:
 *   **Robustness:** PPO policies can recover from minor disturbances due to the compliant nature of the actuators.
 
 ---
-**Author:** Keval Shah
-**Course:** Bio-Inspired Robotics
+**Author:** Keval Shah, Zhixian Xie, Gourav Khanduri, Maharshi Shukla, Sanskar Patil
