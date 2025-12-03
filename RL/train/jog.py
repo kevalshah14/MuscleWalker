@@ -10,10 +10,10 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.monitor import Monitor
 
 
-class MuscleTrotterEnv(gym.Env):
+class MuscleJoggerEnv(gym.Env):
     """
-    Custom Gymnasium environment for the Muscle Walker MuJoCo model - trained for trotting.
-    Trotting involves faster, more dynamic locomotion with rhythmic leg alternation.
+    Custom Gymnasium environment for the Muscle Walker MuJoCo model - trained for jogging.
+    Jogging involves faster, more dynamic locomotion with rhythmic leg alternation.
     """
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 40}
 
@@ -64,12 +64,12 @@ class MuscleTrotterEnv(gym.Env):
 
         self.viewer = None
 
-        # Temporal memory for trotting rhythm
+        # Temporal memory for jogging rhythm
         self.prev_action = np.zeros(6)
         self.prev_forward_vel = 0.0
         self.prev_vertical_vel = 0.0
         self.step_count = 0
-        self.trotting_phase = 0.0  # Track trotting rhythm phase
+        self.jogging_phase = 0.0  # Track jogging rhythm phase
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -100,7 +100,7 @@ class MuscleTrotterEnv(gym.Env):
         self.prev_forward_vel = self.data.qvel[0]
         self.prev_vertical_vel = self.data.qvel[1]
         self.step_count = 0
-        self.trotting_phase = 0.0
+        self.jogging_phase = 0.0
 
         return self._get_obs(), {}
 
@@ -116,7 +116,7 @@ class MuscleTrotterEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
 
         obs = self._get_obs()
-        reward = self._get_trotting_reward(action)
+        reward = self._get_jogging_reward(action)
         terminated = self._is_terminated()
         truncated = False
 
@@ -125,15 +125,15 @@ class MuscleTrotterEnv(gym.Env):
         self.prev_forward_vel = self.data.qvel[0]
         self.prev_vertical_vel = self.data.qvel[1]
         self.step_count += 1
-        # Update trotting phase based on leg alternation pattern
+        # Update jogging phase based on leg alternation pattern
         left_power = np.mean([abs(action[0]), abs(action[1]), abs(action[2])])
         right_power = np.mean([abs(action[3]), abs(action[4]), abs(action[5])])
-        self.trotting_phase = (self.trotting_phase + (left_power - right_power) * 0.1) % (2 * np.pi)
+        self.jogging_phase = (self.jogging_phase + (left_power - right_power) * 0.1) % (2 * np.pi)
 
         info = {
             "x_velocity": self.data.qvel[0],
             "z_height": self.data.qpos[1],
-            "trotting_phase": self.trotting_phase
+            "jogging_phase": self.jogging_phase
         }
 
         if self.auto_render:
@@ -153,18 +153,18 @@ class MuscleTrotterEnv(gym.Env):
         else:
             base_obs = [qpos, qvel]
 
-        # Add temporal features for trotting rhythm
+        # Add temporal features for jogging rhythm
         temporal_features = np.concatenate([
             self.prev_action,                          # 6 dims: previous muscle actions
             [self.prev_forward_vel, self.prev_vertical_vel],  # 2 dims: previous velocities
-            [self.trotting_phase]                      # 1 dim: trotting rhythm phase
+            [self.jogging_phase]                      # 1 dim: jogging rhythm phase
         ])
 
         return np.concatenate(base_obs + [temporal_features])
 
-    def _get_trotting_reward(self, action):
+    def _get_jogging_reward(self, action):
         """
-        Simplified trotting reward - EXACTLY like walking but with higher speed target
+        Simplified jogging reward - EXACTLY like walking but with higher speed target
         This ensures the agent learns to stand/walk first, then speed up naturally
         """
 
@@ -173,7 +173,7 @@ class MuscleTrotterEnv(gym.Env):
         forward_vel = self.data.qvel[0]
 
         # ===== EXACT WALKING REWARD STRUCTURE =====
-        
+
         # 1. Upright reward (maintain pitch near 0)
         upright = (np.cos(pitch) + 1) / 2.0
 
@@ -183,8 +183,8 @@ class MuscleTrotterEnv(gym.Env):
         # 3. Combined standing reward (like MPPI/walking)
         standing_reward = (3.0 * standing + upright) / 4.0
 
-        # 4. Forward movement reward - HIGHER TARGET for trotting
-        # Walking uses 1.0, trotting uses 1.5
+        # 4. Forward movement reward - HIGHER TARGET for jogging
+        # Walking uses 1.0, jogging uses 1.5
         move_reward = np.clip(forward_vel / 1.5, 0.0, 1.0)
 
         # 5. Multiplicative reward structure (EXACTLY like walking)
@@ -252,7 +252,7 @@ class EpisodeLoggerCallback(BaseCallback):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train PPO on the Muscle Trotter environment.")
+    parser = argparse.ArgumentParser(description="Train PPO on the Muscle Jogger environment.")
     parser.add_argument(
         "--render",
         action="store_true",
@@ -261,7 +261,7 @@ def parse_args():
     parser.add_argument(
         "--timesteps",
         type=int,
-        default=300_000,  # Moderate timesteps for trotting (between walking and jumping)
+        default=300_000,  # Moderate timesteps for jogging (between walking and jumping)
         help="Total training timesteps (default: 300k).",
     )
     parser.add_argument(
@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
     render_mode = "human" if args.render else None
 
-    base_env = MuscleTrotterEnv(render_mode=render_mode, auto_render=args.render)
+    base_env = MuscleJoggerEnv(render_mode=render_mode, auto_render=args.render)
     env = Monitor(base_env)
 
     model = PPO(
@@ -296,12 +296,12 @@ if __name__ == "__main__":
         gae_lambda=0.95,
     )
 
-    print("Starting trotting training...")
+    print("Starting jogging training...")
     callback = EpisodeLoggerCallback() if (args.render or args.log_episodes) else None
     model.learn(total_timesteps=args.timesteps, progress_bar=True, callback=callback)
 
-    model.save("../../trained_models/ppo_muscle_trotter")
-    print("Trotter model saved.")
+    model.save("../../trained_models/ppo_muscle_jogger")
+    print("Jogger model saved.")
 
     if args.render:
         print("Training run finished; continuing to render a short rollout...")
